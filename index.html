@@ -8,8 +8,6 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- PapaParse untuk parsing CSV -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
-    <!-- Chart.js untuk visualisasi data -->
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
@@ -104,21 +102,6 @@
                 </div>
             </div>
 
-            <!-- Visualisasi Persentase per Cabdin -->
-            <div class="glass-card rounded-2xl p-6 w-full">
-                <div class="flex justify-between items-end mb-6">
-                    <div>
-                        <h3 class="text-lg font-bold text-slate-800">Persentase Sosialisasi per Cabang Dinas</h3>
-                        <p class="text-sm text-slate-500">Capaian sekolah negeri yang telah melaksanakan sosialisasi.</p>
-                    </div>
-                </div>
-                
-                <!-- Chart Container -->
-                <div class="relative h-[300px] md:h-[400px] w-full">
-                    <canvas id="cabdinChart"></canvas>
-                </div>
-            </div>
-
             <!-- Tabel Rekapitulasi Persentase per Cabdin -->
             <div class="glass-card rounded-2xl flex flex-col overflow-hidden w-full">
                 <div class="p-6 border-b border-slate-100 bg-white">
@@ -164,6 +147,8 @@
                                 <th class="px-6 py-4 font-semibold border-b">No</th>
                                 <th class="px-6 py-4 font-semibold border-b">Cabang Dinas</th>
                                 <th class="px-6 py-4 font-semibold border-b">Nama Sekolah</th>
+                                <th class="px-6 py-4 font-semibold border-b text-center">Tempat Sosialisasi</th>
+                                <th class="px-6 py-4 font-semibold border-b text-center">Tanggal</th>
                                 <th class="px-6 py-4 font-semibold border-b text-center">Jml Peserta</th>
                                 <th class="px-6 py-4 font-semibold border-b text-center">Bukti Daftar Hadir</th>
                                 <th class="px-6 py-4 font-semibold border-b text-center">Bukti Dokumentasi</th>
@@ -199,7 +184,7 @@
     <!-- LOGIC JAVASCRIPT -->
     <script>
         // URL Spreadsheet dari User
-        const CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRjCN3zPVsoGhCf7GGaN4IBP-Ta0aLtnAMzkH8MU44ka3sdJXoqjz8RTJigBiLj-8IMPOWzKp3IZWZw/pub?gid=0&single=true&output=csv";
+        const CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vStE8pXIDxu3qDel7KEC_KeBrYHjHIpSxkf8nFA1pi99K-MWFcWzXgg2TGcsXzxaXX2meRrxUmlsR7Y/pub?gid=0&single=true&output=csv";
 
         // === KONFIGURASI TARGET SEKOLAH PER CABDIN ===
         // Pemetaan target sekolah diperbarui berdasarkan data wilayah dari Cabang Dinas Pendidikan Jatim
@@ -270,8 +255,8 @@
         }
 
         // State Global
-        let globalData = [];
-        let myChart = null;
+        let globalUniqueData = []; // Untuk rekapitulasi & grafik (tanpa duplikat)
+        let globalAllData = [];    // Untuk tabel rincian (semua data termasuk duplikat)
 
         // Inisialisasi Aplikasi
         document.addEventListener('DOMContentLoaded', () => {
@@ -328,20 +313,40 @@
 
             const colCabdin = findCol(['cabang', 'cabdin', 'wilayah']);
             const colSekolah = findCol(['sekolah', 'nama sekolah', 'asal sekolah']);
+            const colTempat = findCol(['tempat', 'lokasi', 'ruang']);
+            const colTanggal = findCol(['tanggal', 'pelaksanaan', 'waktu', 'timestamp']);
             const colPeserta = findCol(['jumlah', 'peserta', 'siswa']);
             const colHadir = findCol(['hadir', 'absen', 'presensi']);
             const colDokumen = findCol(['dokumen', 'foto', 'kegiatan', 'bukti']);
 
             // Mapping data agar seragam
-            globalData = data.map((row, index) => {
+            let rawMappedData = data.map((row, index) => {
                 return {
                     id: index + 1,
                     cabdin: row[colCabdin] || 'Tidak Terdefinisi',
                     sekolah: row[colSekolah] || 'Tidak Diketahui',
+                    tempat: row[colTempat] || '-',
+                    tanggal: row[colTanggal] || '-',
                     jumlahPeserta: row[colPeserta] || '-',
                     buktiHadir: row[colHadir] || '',
                     buktiDokumen: row[colDokumen] || ''
                 };
+            });
+
+            // Deduplikasi: Jika ada sekolah yang sama submit lebih dari 1 kali, hitung 1 saja (ambil data terbaru)
+            let uniqueDataMap = new Map();
+            rawMappedData.forEach(item => {
+                // Membuat kunci unik dari gabungan cabdin dan nama sekolah (huruf kecil & tanpa spasi ekstra)
+                const uniqueKey = item.cabdin.toLowerCase().trim() + "_" + item.sekolah.toLowerCase().trim();
+                uniqueDataMap.set(uniqueKey, item); // otomatis menyimpan data yang paling akhir masuk
+            });
+
+            globalUniqueData = Array.from(uniqueDataMap.values());
+            globalAllData = rawMappedData; // Simpan SEMUA data mentah untuk tabel rincian
+            
+            // Perbarui ulang urutan penomoran (ID) setelah duplikat dihapus pada data unik
+            globalUniqueData.forEach((item, index) => { 
+                item.id = index + 1; 
             });
 
             // Sembunyikan loading, tampilkan dashboard
@@ -350,17 +355,16 @@
             document.getElementById('dashboard-content').classList.add('flex');
 
             updateSummary();
-            renderChart();
             renderSummaryTable();
             renderTable();
         }
 
         // Update Kartu Ringkasan
         function updateSummary() {
-            const totalSekolah = globalData.length;
+            const totalSekolah = globalUniqueData.length;
             
             // Dapatkan list Cabdin unik
-            const cabdins = [...new Set(globalData.map(item => item.cabdin))];
+            const cabdins = [...new Set(globalUniqueData.map(item => item.cabdin))];
             
             // Hitung estimasi total target sekolah
             let estimatedTotalTarget = 0;
@@ -383,90 +387,13 @@
             else bar.classList.replace('bg-purple-600', 'bg-green-500');
         }
 
-        // Render Grafik Bar (Chart.js)
-        function renderChart() {
-            const ctx = document.getElementById('cabdinChart').getContext('2d');
-            
-            // Mengelompokkan data berdasarkan Cabdin
-            const cabdinCounts = {};
-            globalData.forEach(item => {
-                cabdinCounts[item.cabdin] = (cabdinCounts[item.cabdin] || 0) + 1;
-            });
-
-            const labels = Object.keys(cabdinCounts).sort();
-            const dataCounts = labels.map(label => cabdinCounts[label]);
-            const dataPercentages = labels.map(label => {
-                const target = getTargetForCabdin(label);
-                return Math.min(Math.round((cabdinCounts[label] / target) * 100), 100);
-            });
-
-            if (myChart) {
-                myChart.destroy();
-            }
-
-            myChart = new Chart(ctx, {
-                type: 'bar',
-                data: {
-                    labels: labels,
-                    datasets: [
-                        {
-                            label: 'Persentase Penyelesaian (%)',
-                            data: dataPercentages,
-                            backgroundColor: 'rgba(59, 130, 246, 0.8)', // Blue-500
-                            borderColor: 'rgb(37, 99, 235)', // Blue-600
-                            borderWidth: 1,
-                            borderRadius: 4,
-                            yAxisID: 'y'
-                        }
-                    ]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    plugins: {
-                        legend: { display: false },
-                        tooltip: {
-                            callbacks: {
-                                label: function(context) {
-                                    const label = context.chart.data.labels[context.dataIndex];
-                                    const count = cabdinCounts[label];
-                                    const target = getTargetForCabdin(label);
-                                    return ` ${context.raw}% (${count} melapor dari total ${target} sekolah kewenangan)`;
-                                }
-                            }
-                        }
-                    },
-                    scales: {
-                        y: {
-                            beginAtZero: true,
-                            max: 100,
-                            ticks: {
-                                callback: function(value) { return value + '%' }
-                            },
-                            title: {
-                                display: true,
-                                text: 'Persentase (%)'
-                            }
-                        },
-                        x: {
-                            ticks: {
-                                autoSkip: false,
-                                maxRotation: 45,
-                                minRotation: 45
-                            }
-                        }
-                    }
-                }
-            });
-        }
-
         // Render Tabel Rekapitulasi Persentase
         function renderSummaryTable() {
             const tbody = document.getElementById('summary-table-body');
             tbody.innerHTML = "";
 
             const cabdinCounts = {};
-            globalData.forEach(item => {
+            globalUniqueData.forEach(item => {
                 cabdinCounts[item.cabdin] = (cabdinCounts[item.cabdin] || 0) + 1;
             });
 
@@ -556,8 +483,8 @@
             const emptyState = document.getElementById('empty-state');
             tbody.innerHTML = "";
 
-            // Filter data
-            const filteredData = globalData.filter(item => {
+            // Filter data dari seluruh isian mentah (termasuk jika ada duplikat)
+            const filteredData = globalAllData.filter(item => {
                 const term = searchTerm.toLowerCase();
                 return item.cabdin.toLowerCase().includes(term) || item.sekolah.toLowerCase().includes(term);
             });
@@ -577,6 +504,8 @@
                         <td class="px-6 py-4 border-b w-12 text-center text-slate-500">${index + 1}</td>
                         <td class="px-6 py-4 border-b font-medium text-slate-800">${item.cabdin}</td>
                         <td class="px-6 py-4 border-b">${item.sekolah}</td>
+                        <td class="px-6 py-4 border-b text-center text-slate-600">${item.tempat}</td>
+                        <td class="px-6 py-4 border-b text-center text-slate-600">${item.tanggal}</td>
                         <td class="px-6 py-4 border-b text-center font-semibold text-slate-700">${item.jumlahPeserta}</td>
                         <td class="px-6 py-4 border-b text-center">
                             ${createLinkButton(item.buktiHadir, 'hadir')}
@@ -589,7 +518,7 @@
             });
 
             tbody.innerHTML = html;
-            document.getElementById('showing-text').innerText = `Menampilkan ${filteredData.length} baris sekolah`;
+            document.getElementById('showing-text').innerText = `Menampilkan ${filteredData.length} baris data (termasuk isian berulang)`;
         }
     </script>
 </body>
