@@ -164,6 +164,7 @@
                                 <th class="px-6 py-4 font-semibold border-b">No</th>
                                 <th class="px-6 py-4 font-semibold border-b">Cabang Dinas</th>
                                 <th class="px-6 py-4 font-semibold border-b">Nama Sekolah</th>
+                                <th class="px-6 py-4 font-semibold border-b text-center">Jml Peserta</th>
                                 <th class="px-6 py-4 font-semibold border-b text-center">Bukti Daftar Hadir</th>
                                 <th class="px-6 py-4 font-semibold border-b text-center">Bukti Dokumentasi</th>
                             </tr>
@@ -198,22 +199,75 @@
     <!-- LOGIC JAVASCRIPT -->
     <script>
         // URL Spreadsheet dari User
-        const CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vSPmrHm2BlV0cw-iSytvNc_wfPSHYndMYDYXBfRvrydN1iD6hjMLQdgvvW79nVKNYhueuisy1ihyp3I/pub?gid=0&single=true&output=csv";
+        const CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRjCN3zPVsoGhCf7GGaN4IBP-Ta0aLtnAMzkH8MU44ka3sdJXoqjz8RTJigBiLj-8IMPOWzKp3IZWZw/pub?gid=0&single=true&output=csv";
 
         // === KONFIGURASI TARGET SEKOLAH PER CABDIN ===
-        // Tim IT dapat menyesuaikan angka target total SMA/SMK Negeri di setiap Cabdin di sini.
-        // Jika nama Cabdin tidak ada di list ini, sistem akan memakai nilai default.
-        const defaultTarget = 50; 
+        // Pemetaan target sekolah diperbarui berdasarkan data wilayah dari Cabang Dinas Pendidikan Jatim
         const targetSekolahPerCabdin = {
-            "Cabdin Wilayah Surabaya": 60,
-            "Cabdin Wilayah Sidoarjo": 50,
-            "Cabdin Wilayah Malang": 75,
-            "Cabdin Wilayah Kediri": 55,
-            "Cabdin Wilayah Madiun": 45,
-            "Cabdin Wilayah Jember": 65,
-            "Cabdin Wilayah Bojonegoro": 50,
-            // Tambahkan cabdin lain sesuai kebutuhan...
+            "WIL. SIDOARJO": 51,
+            "WIL. MALANG": 30,
+            "WIL. KAB. GRESIK": 16,
+            "WIL. KAB. JOMBANG": 20,
+            "WIL. KAB. LAMONGAN": 20,
+            "WIL. BOJONEGORO": 67,
+            "WIL. MADIUN": 50,
+            "WIL. PONOROGO": 40,
+            "WIL. TULUNGAGUNG": 37,
+            "WIL. KAB. PACITAN": 22,
+            "WIL. KAB. NGANJUK": 22,
+            "WIL. KAB. MALANG": 22,
+            "WIL. MOJOKERTO": 24,
+            "WIL. BLITAR": 20,
+            "WIL. KEDIRI": 31,
+            "WIL. PROBOLINGGO": 36,
+            "WIL. PASURUAN": 29,
+            "WIL. JEMBER": 47,
+            "WIL. BONDOWOSO": 43,
+            "WIL. KAB. BANYUWANGI": 26,
+            "WIL. KAB. BANGKALAN": 20,
+            "WIL. KAB. SAMPANG": 17,
+            "WIL. KAB. PAMEKASAN": 16,
+            "WIL. KAB. SUMENEP": 15
         };
+
+        // Fungsi bantu cerdas (Smart Detection) agar nama cabang dinas yang diinput di form
+        // tetap terdeteksi targetnya meskipun format penulisannya berbeda-beda.
+        function getTargetForCabdin(cabdinName) {
+            if (!cabdinName) return 0;
+            const name = cabdinName.toLowerCase();
+            
+            // Khusus Malang (Membedakan Kota/Batu dengan Kabupaten)
+            if (name.includes('malang')) {
+                if (name.includes('kab') || name.includes('kabupaten')) return targetSekolahPerCabdin["WIL. KAB. MALANG"];
+                return targetSekolahPerCabdin["WIL. MALANG"]; // Kota Malang & Batu
+            }
+            
+            if (name.includes('sidoarjo') || name.includes('surabaya')) return targetSekolahPerCabdin["WIL. SIDOARJO"];
+            if (name.includes('gresik')) return targetSekolahPerCabdin["WIL. KAB. GRESIK"];
+            if (name.includes('jombang')) return targetSekolahPerCabdin["WIL. KAB. JOMBANG"];
+            if (name.includes('lamongan')) return targetSekolahPerCabdin["WIL. KAB. LAMONGAN"];
+            if (name.includes('bojonegoro') || name.includes('tuban')) return targetSekolahPerCabdin["WIL. BOJONEGORO"];
+            if (name.includes('madiun') || name.includes('ngawi')) return targetSekolahPerCabdin["WIL. MADIUN"];
+            if (name.includes('ponorogo') || name.includes('magetan')) return targetSekolahPerCabdin["WIL. PONOROGO"];
+            if (name.includes('tulungagung') || name.includes('trenggalek')) return targetSekolahPerCabdin["WIL. TULUNGAGUNG"];
+            if (name.includes('pacitan')) return targetSekolahPerCabdin["WIL. KAB. PACITAN"];
+            if (name.includes('nganjuk')) return targetSekolahPerCabdin["WIL. KAB. NGANJUK"];
+            if (name.includes('mojokerto')) return targetSekolahPerCabdin["WIL. MOJOKERTO"];
+            if (name.includes('blitar')) return targetSekolahPerCabdin["WIL. BLITAR"];
+            if (name.includes('kediri')) return targetSekolahPerCabdin["WIL. KEDIRI"];
+            if (name.includes('probolinggo')) return targetSekolahPerCabdin["WIL. PROBOLINGGO"];
+            if (name.includes('pasuruan')) return targetSekolahPerCabdin["WIL. PASURUAN"];
+            if (name.includes('jember') || name.includes('lumajang')) return targetSekolahPerCabdin["WIL. JEMBER"];
+            if (name.includes('bondowoso') || name.includes('situbondo')) return targetSekolahPerCabdin["WIL. BONDOWOSO"];
+            if (name.includes('banyuwangi')) return targetSekolahPerCabdin["WIL. KAB. BANYUWANGI"];
+            if (name.includes('bangkalan')) return targetSekolahPerCabdin["WIL. KAB. BANGKALAN"];
+            if (name.includes('sampang')) return targetSekolahPerCabdin["WIL. KAB. SAMPANG"];
+            if (name.includes('pamekasan')) return targetSekolahPerCabdin["WIL. KAB. PAMEKASAN"];
+            if (name.includes('sumenep')) return targetSekolahPerCabdin["WIL. KAB. SUMENEP"];
+
+            // Jika benar-benar tidak terdeteksi (mencegah error kalkulasi)
+            return 0; 
+        }
 
         // State Global
         let globalData = [];
@@ -274,6 +328,7 @@
 
             const colCabdin = findCol(['cabang', 'cabdin', 'wilayah']);
             const colSekolah = findCol(['sekolah', 'nama sekolah', 'asal sekolah']);
+            const colPeserta = findCol(['jumlah', 'peserta', 'siswa']);
             const colHadir = findCol(['hadir', 'absen', 'presensi']);
             const colDokumen = findCol(['dokumen', 'foto', 'kegiatan', 'bukti']);
 
@@ -283,6 +338,7 @@
                     id: index + 1,
                     cabdin: row[colCabdin] || 'Tidak Terdefinisi',
                     sekolah: row[colSekolah] || 'Tidak Diketahui',
+                    jumlahPeserta: row[colPeserta] || '-',
                     buktiHadir: row[colHadir] || '',
                     buktiDokumen: row[colDokumen] || ''
                 };
@@ -309,7 +365,7 @@
             // Hitung estimasi total target sekolah
             let estimatedTotalTarget = 0;
             cabdins.forEach(c => {
-                estimatedTotalTarget += targetSekolahPerCabdin[c] || defaultTarget;
+                estimatedTotalTarget += getTargetForCabdin(c);
             });
             
             const progress = estimatedTotalTarget > 0 ? Math.min(Math.round((totalSekolah / estimatedTotalTarget) * 100), 100) : 0;
@@ -340,7 +396,7 @@
             const labels = Object.keys(cabdinCounts).sort();
             const dataCounts = labels.map(label => cabdinCounts[label]);
             const dataPercentages = labels.map(label => {
-                const target = targetSekolahPerCabdin[label] || defaultTarget;
+                const target = getTargetForCabdin(label);
                 return Math.min(Math.round((cabdinCounts[label] / target) * 100), 100);
             });
 
@@ -374,7 +430,7 @@
                                 label: function(context) {
                                     const label = context.chart.data.labels[context.dataIndex];
                                     const count = cabdinCounts[label];
-                                    const target = targetSekolahPerCabdin[label] || defaultTarget;
+                                    const target = getTargetForCabdin(label);
                                     return ` ${context.raw}% (${count} melapor dari total ${target} sekolah kewenangan)`;
                                 }
                             }
@@ -419,7 +475,7 @@
 
             labels.forEach((label, index) => {
                 const count = cabdinCounts[label];
-                const target = targetSekolahPerCabdin[label] || defaultTarget;
+                const target = getTargetForCabdin(label);
                 const percentage = Math.min(Math.round((count / target) * 100), 100);
 
                 let badgeClass = "bg-green-100 text-green-700 border border-green-200";
@@ -521,6 +577,7 @@
                         <td class="px-6 py-4 border-b w-12 text-center text-slate-500">${index + 1}</td>
                         <td class="px-6 py-4 border-b font-medium text-slate-800">${item.cabdin}</td>
                         <td class="px-6 py-4 border-b">${item.sekolah}</td>
+                        <td class="px-6 py-4 border-b text-center font-semibold text-slate-700">${item.jumlahPeserta}</td>
                         <td class="px-6 py-4 border-b text-center">
                             ${createLinkButton(item.buktiHadir, 'hadir')}
                         </td>
