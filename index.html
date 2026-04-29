@@ -1,0 +1,539 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Rekapitulasi Monitoring SPMB Jatim 2026</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- PapaParse untuk parsing CSV -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+    <!-- Chart.js untuk visualisasi data -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+        body { font-family: 'Inter', sans-serif; }
+        .glass-card {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
+        }
+        .custom-scrollbar::-webkit-scrollbar { width: 6px; height: 6px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: #f1f5f9; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+        
+        /* Loading Spinner */
+        .loader {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #3b82f6;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-800 min-h-screen flex flex-col">
+
+    <!-- Header -->
+    <header class="bg-blue-700 text-white shadow-lg sticky top-0 z-50">
+        <div class="container mx-auto px-4 py-4 flex flex-col sm:flex-row justify-between items-center gap-4">
+            <div class="flex items-center gap-3">
+                <div class="bg-white p-1.5 rounded-lg">
+                    <img src="https://lh3.googleusercontent.com/d/1Lod556eWqAhG6n8YmMDGaBspUDqhjGyF" 
+                         onerror="this.onerror=null; this.src='https://upload.wikimedia.org/wikipedia/commons/thumb/a/a4/Coat_of_arms_of_East_Java.svg/100px-Coat_of_arms_of_East_Java.svg.png';" 
+                         alt="Logo Pemprov Jatim" 
+                         class="w-9 h-9 object-contain">
+                </div>
+                <div>
+                    <h1 class="text-xl md:text-2xl font-bold leading-tight">Rekapitulasi Monitoring SPMB Jatim 2026</h1>
+                    <p class="text-blue-200 text-sm">Dinas Pendidikan Provinsi Jawa Timur</p>
+                </div>
+            </div>
+            
+            <div class="flex items-center gap-3">
+                <!-- Tombol Refresh -->
+                <button onclick="refreshData()" class="text-sm font-medium bg-white/20 hover:bg-white/30 text-white px-3 py-2 rounded-lg transition-colors flex items-center gap-2" title="Refresh Data Terbaru">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
+                    <span class="hidden sm:inline">Refresh Data</span>
+                </button>
+                
+                <div class="text-sm font-medium bg-blue-800 px-4 py-2 rounded-full border border-blue-600 flex items-center gap-2">
+                    <span class="relative flex h-3 w-3">
+                      <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+                      <span class="relative inline-flex rounded-full h-3 w-3 bg-green-500"></span>
+                    </span>
+                    <span class="hidden sm:inline">Data Sinkronisasi Aktif</span>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="container mx-auto px-4 py-8 flex-grow flex flex-col gap-8 w-full max-w-7xl">
+        
+        <!-- Loading State -->
+        <div id="loading-state" class="flex flex-col items-center justify-center py-20">
+            <div class="loader mb-4"></div>
+            <p class="text-slate-500 font-medium animate-pulse">Menarik data dari Spreadsheet...</p>
+        </div>
+
+        <!-- Dashboard Content (Hidden by default) -->
+        <div id="dashboard-content" class="hidden flex-col gap-8">
+            
+            <!-- Summary Stats -->
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div class="glass-card rounded-2xl p-6 border-l-4 border-l-blue-500">
+                    <p class="text-sm text-slate-500 font-semibold mb-1">Total Sekolah Melapor</p>
+                    <h2 id="stat-total" class="text-4xl font-bold text-slate-800">0</h2>
+                </div>
+                <div class="glass-card rounded-2xl p-6 border-l-4 border-l-green-500">
+                    <p class="text-sm text-slate-500 font-semibold mb-1">Cabang Dinas Terlibat</p>
+                    <h2 id="stat-cabdin" class="text-4xl font-bold text-slate-800">0</h2>
+                </div>
+                <div class="glass-card rounded-2xl p-6 border-l-4 border-l-purple-500 flex flex-col justify-center">
+                    <p class="text-sm text-slate-500 font-semibold mb-2">Progress Keseluruhan</p>
+                    <div class="w-full bg-slate-200 rounded-full h-2.5">
+                        <div id="stat-progress-bar" class="bg-purple-600 h-2.5 rounded-full" style="width: 0%"></div>
+                    </div>
+                    <p id="stat-progress-text" class="text-xs text-right mt-1 text-slate-500">0%</p>
+                </div>
+            </div>
+
+            <!-- Visualisasi Persentase per Cabdin -->
+            <div class="glass-card rounded-2xl p-6 w-full">
+                <div class="flex justify-between items-end mb-6">
+                    <div>
+                        <h3 class="text-lg font-bold text-slate-800">Persentase Sosialisasi per Cabang Dinas</h3>
+                        <p class="text-sm text-slate-500">Capaian sekolah negeri yang telah melaksanakan sosialisasi.</p>
+                    </div>
+                </div>
+                
+                <!-- Chart Container -->
+                <div class="relative h-[300px] md:h-[400px] w-full">
+                    <canvas id="cabdinChart"></canvas>
+                </div>
+            </div>
+
+            <!-- Tabel Rekapitulasi Persentase per Cabdin -->
+            <div class="glass-card rounded-2xl flex flex-col overflow-hidden w-full">
+                <div class="p-6 border-b border-slate-100 bg-white">
+                    <h3 class="text-lg font-bold text-slate-800">Tabel Persentase per Cabang Dinas</h3>
+                    <p class="text-sm text-slate-500">Rincian persentase capaian berdasarkan jumlah sekolah pada kewenangan masing-masing wilayah.</p>
+                </div>
+                <div class="overflow-x-auto custom-scrollbar">
+                    <table class="w-full text-left border-collapse whitespace-nowrap">
+                        <thead>
+                            <tr class="bg-slate-50 text-slate-500 text-xs uppercase tracking-wider">
+                                <th class="px-6 py-4 font-semibold border-b">No</th>
+                                <th class="px-6 py-4 font-semibold border-b">Cabang Dinas Pendidikan</th>
+                                <th class="px-6 py-4 font-semibold border-b text-center">Sekolah Melapor</th>
+                                <th class="px-6 py-4 font-semibold border-b text-center">Total Sekolah Kewenangan</th>
+                                <th class="px-6 py-4 font-semibold border-b text-center">Persentase</th>
+                            </tr>
+                        </thead>
+                        <tbody id="summary-table-body" class="text-sm text-slate-700 divide-y divide-slate-100 bg-white">
+                            <!-- Baris tabel akan dirender oleh JavaScript -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Tabel Data Terperinci -->
+            <div class="glass-card rounded-2xl flex flex-col overflow-hidden w-full">
+                <div class="p-6 border-b border-slate-100 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white">
+                    <div>
+                        <h3 class="text-lg font-bold text-slate-800">Rincian Data Pelaporan</h3>
+                        <p class="text-sm text-slate-500">Daftar lengkap sekolah beserta bukti pelaksanaan.</p>
+                    </div>
+                    <!-- Search Box -->
+                    <div class="relative w-full sm:w-72">
+                        <input type="text" id="searchInput" placeholder="Cari sekolah atau cabdin..." class="w-full pl-10 pr-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all text-sm">
+                        <svg class="w-5 h-5 text-slate-400 absolute left-3 top-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+                    </div>
+                </div>
+                
+                <div class="overflow-x-auto custom-scrollbar">
+                    <table class="w-full text-left border-collapse whitespace-nowrap">
+                        <thead>
+                            <tr class="bg-slate-50 text-slate-500 text-xs uppercase tracking-wider">
+                                <th class="px-6 py-4 font-semibold border-b">No</th>
+                                <th class="px-6 py-4 font-semibold border-b">Cabang Dinas</th>
+                                <th class="px-6 py-4 font-semibold border-b">Nama Sekolah</th>
+                                <th class="px-6 py-4 font-semibold border-b text-center">Bukti Daftar Hadir</th>
+                                <th class="px-6 py-4 font-semibold border-b text-center">Bukti Dokumentasi</th>
+                            </tr>
+                        </thead>
+                        <tbody id="table-body" class="text-sm text-slate-700 divide-y divide-slate-100 bg-white">
+                            <!-- Baris tabel akan dirender oleh JavaScript -->
+                        </tbody>
+                    </table>
+                </div>
+                
+                <!-- Empty State -->
+                <div id="empty-state" class="hidden p-8 text-center text-slate-500">
+                    Tidak ada data yang cocok dengan pencarian Anda.
+                </div>
+                
+                <!-- Pagination (Simple) -->
+                <div class="p-4 border-t border-slate-100 bg-slate-50 flex justify-between items-center text-sm text-slate-600">
+                    <span id="showing-text">Menampilkan 0 baris</span>
+                </div>
+            </div>
+        </div>
+
+    </main>
+
+    <!-- Footer -->
+    <footer class="bg-white border-t border-slate-200 mt-auto py-6">
+        <div class="container mx-auto px-4 text-center text-sm text-slate-500">
+            &copy; 2026 Tim IT Dinas Pendidikan Provinsi Jawa Timur. Sistem Monitoring SPMB.
+        </div>
+    </footer>
+
+    <!-- LOGIC JAVASCRIPT -->
+    <script>
+        // URL Spreadsheet dari User
+        const CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vSPmrHm2BlV0cw-iSytvNc_wfPSHYndMYDYXBfRvrydN1iD6hjMLQdgvvW79nVKNYhueuisy1ihyp3I/pub?gid=0&single=true&output=csv";
+
+        // === KONFIGURASI TARGET SEKOLAH PER CABDIN ===
+        // Tim IT dapat menyesuaikan angka target total SMA/SMK Negeri di setiap Cabdin di sini.
+        // Jika nama Cabdin tidak ada di list ini, sistem akan memakai nilai default.
+        const defaultTarget = 50; 
+        const targetSekolahPerCabdin = {
+            "Cabdin Wilayah Surabaya": 60,
+            "Cabdin Wilayah Sidoarjo": 50,
+            "Cabdin Wilayah Malang": 75,
+            "Cabdin Wilayah Kediri": 55,
+            "Cabdin Wilayah Madiun": 45,
+            "Cabdin Wilayah Jember": 65,
+            "Cabdin Wilayah Bojonegoro": 50,
+            // Tambahkan cabdin lain sesuai kebutuhan...
+        };
+
+        // State Global
+        let globalData = [];
+        let myChart = null;
+
+        // Inisialisasi Aplikasi
+        document.addEventListener('DOMContentLoaded', () => {
+            fetchData();
+            
+            // Listener untuk pencarian
+            document.getElementById('searchInput').addEventListener('input', (e) => {
+                renderTable(e.target.value);
+            });
+        });
+
+        // Fungsi untuk Refresh Data Manual
+        function refreshData() {
+            // Sembunyikan dashboard, tampilkan animasi loading
+            document.getElementById('dashboard-content').classList.add('hidden');
+            document.getElementById('dashboard-content').classList.remove('flex');
+            document.getElementById('loading-state').classList.remove('hidden');
+            
+            // Kosongkan pencarian (opsional)
+            document.getElementById('searchInput').value = "";
+            
+            // Ambil ulang data dari Spreadsheet
+            fetchData();
+        }
+
+        // Fetch & Parse CSV menggunakan PapaParse
+        function fetchData() {
+            Papa.parse(CSV_URL, {
+                download: true,
+                header: true,
+                skipEmptyLines: true,
+                complete: function(results) {
+                    processData(results.data, results.meta.fields);
+                },
+                error: function(err) {
+                    console.error("Error fetching data:", err);
+                    alert("Gagal mengambil data dari Google Spreadsheet. Pastikan link dapat diakses publik.");
+                    document.getElementById('loading-state').innerHTML = `<p class="text-red-500">Gagal memuat data. Silakan muat ulang halaman.</p>`;
+                }
+            });
+        }
+
+        // Memproses Data Mentah
+        function processData(data, headers) {
+            if (!data || data.length === 0) {
+                document.getElementById('loading-state').innerHTML = `<p class="text-slate-500">Tidak ada data di Spreadsheet.</p>`;
+                return;
+            }
+
+            // Fungsi untuk mendeteksi kolom otomatis berdasarkan kata kunci
+            const findCol = (keywords) => {
+                return headers.find(h => keywords.some(k => h.toLowerCase().includes(k))) || "";
+            };
+
+            const colCabdin = findCol(['cabang', 'cabdin', 'wilayah']);
+            const colSekolah = findCol(['sekolah', 'nama sekolah', 'asal sekolah']);
+            const colHadir = findCol(['hadir', 'absen', 'presensi']);
+            const colDokumen = findCol(['dokumen', 'foto', 'kegiatan', 'bukti']);
+
+            // Mapping data agar seragam
+            globalData = data.map((row, index) => {
+                return {
+                    id: index + 1,
+                    cabdin: row[colCabdin] || 'Tidak Terdefinisi',
+                    sekolah: row[colSekolah] || 'Tidak Diketahui',
+                    buktiHadir: row[colHadir] || '',
+                    buktiDokumen: row[colDokumen] || ''
+                };
+            });
+
+            // Sembunyikan loading, tampilkan dashboard
+            document.getElementById('loading-state').classList.add('hidden');
+            document.getElementById('dashboard-content').classList.remove('hidden');
+            document.getElementById('dashboard-content').classList.add('flex');
+
+            updateSummary();
+            renderChart();
+            renderSummaryTable();
+            renderTable();
+        }
+
+        // Update Kartu Ringkasan
+        function updateSummary() {
+            const totalSekolah = globalData.length;
+            
+            // Dapatkan list Cabdin unik
+            const cabdins = [...new Set(globalData.map(item => item.cabdin))];
+            
+            // Hitung estimasi total target sekolah
+            let estimatedTotalTarget = 0;
+            cabdins.forEach(c => {
+                estimatedTotalTarget += targetSekolahPerCabdin[c] || defaultTarget;
+            });
+            
+            const progress = estimatedTotalTarget > 0 ? Math.min(Math.round((totalSekolah / estimatedTotalTarget) * 100), 100) : 0;
+
+            document.getElementById('stat-total').innerText = totalSekolah;
+            document.getElementById('stat-cabdin').innerText = cabdins.length;
+            
+            const bar = document.getElementById('stat-progress-bar');
+            bar.style.width = `${progress}%`;
+            document.getElementById('stat-progress-text').innerText = `${progress}% (Dari total sekolah kewenangan)`;
+            
+            // Ganti warna bar berdasarkan progress
+            if (progress < 40) bar.classList.replace('bg-purple-600', 'bg-red-500');
+            else if (progress < 70) bar.classList.replace('bg-purple-600', 'bg-yellow-500');
+            else bar.classList.replace('bg-purple-600', 'bg-green-500');
+        }
+
+        // Render Grafik Bar (Chart.js)
+        function renderChart() {
+            const ctx = document.getElementById('cabdinChart').getContext('2d');
+            
+            // Mengelompokkan data berdasarkan Cabdin
+            const cabdinCounts = {};
+            globalData.forEach(item => {
+                cabdinCounts[item.cabdin] = (cabdinCounts[item.cabdin] || 0) + 1;
+            });
+
+            const labels = Object.keys(cabdinCounts).sort();
+            const dataCounts = labels.map(label => cabdinCounts[label]);
+            const dataPercentages = labels.map(label => {
+                const target = targetSekolahPerCabdin[label] || defaultTarget;
+                return Math.min(Math.round((cabdinCounts[label] / target) * 100), 100);
+            });
+
+            if (myChart) {
+                myChart.destroy();
+            }
+
+            myChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [
+                        {
+                            label: 'Persentase Penyelesaian (%)',
+                            data: dataPercentages,
+                            backgroundColor: 'rgba(59, 130, 246, 0.8)', // Blue-500
+                            borderColor: 'rgb(37, 99, 235)', // Blue-600
+                            borderWidth: 1,
+                            borderRadius: 4,
+                            yAxisID: 'y'
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    const label = context.chart.data.labels[context.dataIndex];
+                                    const count = cabdinCounts[label];
+                                    const target = targetSekolahPerCabdin[label] || defaultTarget;
+                                    return ` ${context.raw}% (${count} melapor dari total ${target} sekolah kewenangan)`;
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            max: 100,
+                            ticks: {
+                                callback: function(value) { return value + '%' }
+                            },
+                            title: {
+                                display: true,
+                                text: 'Persentase (%)'
+                            }
+                        },
+                        x: {
+                            ticks: {
+                                autoSkip: false,
+                                maxRotation: 45,
+                                minRotation: 45
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        // Render Tabel Rekapitulasi Persentase
+        function renderSummaryTable() {
+            const tbody = document.getElementById('summary-table-body');
+            tbody.innerHTML = "";
+
+            const cabdinCounts = {};
+            globalData.forEach(item => {
+                cabdinCounts[item.cabdin] = (cabdinCounts[item.cabdin] || 0) + 1;
+            });
+
+            const labels = Object.keys(cabdinCounts).sort();
+            let html = "";
+
+            labels.forEach((label, index) => {
+                const count = cabdinCounts[label];
+                const target = targetSekolahPerCabdin[label] || defaultTarget;
+                const percentage = Math.min(Math.round((count / target) * 100), 100);
+
+                let badgeClass = "bg-green-100 text-green-700 border border-green-200";
+                if (percentage < 40) badgeClass = "bg-red-100 text-red-700 border border-red-200";
+                else if (percentage < 70) badgeClass = "bg-yellow-100 text-yellow-700 border border-yellow-200";
+
+                html += `
+                    <tr class="hover:bg-slate-50 transition-colors">
+                        <td class="px-6 py-4 border-b w-12 text-center text-slate-500">${index + 1}</td>
+                        <td class="px-6 py-4 border-b font-medium text-slate-800">${label}</td>
+                        <td class="px-6 py-4 border-b text-center font-medium">${count}</td>
+                        <td class="px-6 py-4 border-b text-center text-slate-500">${target}</td>
+                        <td class="px-6 py-4 border-b text-center">
+                            <span class="px-3 py-1 rounded-full text-xs font-bold ${badgeClass}">
+                                ${percentage}%
+                            </span>
+                        </td>
+                    </tr>
+                `;
+            });
+
+            tbody.innerHTML = html;
+        }
+
+        // Pengecekan URL Valid yang lebih fleksibel
+        function extractFirstLink(string) {
+            if (!string) return null;
+            // Jika ada banyak link (biasanya dari upload multiple file Google Form), pisahkan dengan koma
+            const parts = string.split(',');
+            for (let part of parts) {
+                let s = part.trim();
+                if (s.toLowerCase().startsWith('www.')) {
+                    s = 'https://' + s;
+                }
+                if (s.toLowerCase().startsWith('http://') || s.toLowerCase().startsWith('https://')) {
+                    return s;
+                }
+            }
+            return null;
+        }
+
+        // Membuat Tombol Link
+        function createLinkButton(rawString, type) {
+            if (!rawString) {
+                return `<span class="text-xs text-slate-400 italic">Belum ada data</span>`;
+            }
+
+            const validUrl = extractFirstLink(rawString);
+
+            if (!validUrl) {
+                // Jika isinya bukan link (misal teks "Menyusul" atau format salah)
+                const safeText = rawString.length > 20 ? rawString.substring(0, 20) + '...' : rawString;
+                return `<span class="text-xs text-slate-500 italic" title="${rawString}">${safeText}</span>`;
+            }
+
+            let icon, colorClass, label;
+            if (type === 'hadir') {
+                label = "Lihat Daftar Hadir";
+                colorClass = "bg-emerald-100 text-emerald-700 hover:bg-emerald-200 border-emerald-200";
+                icon = `<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>`;
+            } else {
+                label = "Lihat Dokumentasi";
+                colorClass = "bg-blue-100 text-blue-700 hover:bg-blue-200 border-blue-200";
+                icon = `<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>`;
+            }
+
+            return `
+                <a href="${validUrl}" target="_blank" rel="noopener noreferrer" 
+                   class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md border text-xs font-medium transition-colors ${colorClass}">
+                    ${icon} ${label}
+                </a>
+            `;
+        }
+
+        // Render Tabel HTML
+        function renderTable(searchTerm = "") {
+            const tbody = document.getElementById('table-body');
+            const emptyState = document.getElementById('empty-state');
+            tbody.innerHTML = "";
+
+            // Filter data
+            const filteredData = globalData.filter(item => {
+                const term = searchTerm.toLowerCase();
+                return item.cabdin.toLowerCase().includes(term) || item.sekolah.toLowerCase().includes(term);
+            });
+
+            if (filteredData.length === 0) {
+                emptyState.classList.remove('hidden');
+                document.getElementById('showing-text').innerText = "Menampilkan 0 baris";
+                return;
+            } else {
+                emptyState.classList.add('hidden');
+            }
+
+            let html = "";
+            filteredData.forEach((item, index) => {
+                html += `
+                    <tr class="hover:bg-slate-50 transition-colors">
+                        <td class="px-6 py-4 border-b w-12 text-center text-slate-500">${index + 1}</td>
+                        <td class="px-6 py-4 border-b font-medium text-slate-800">${item.cabdin}</td>
+                        <td class="px-6 py-4 border-b">${item.sekolah}</td>
+                        <td class="px-6 py-4 border-b text-center">
+                            ${createLinkButton(item.buktiHadir, 'hadir')}
+                        </td>
+                        <td class="px-6 py-4 border-b text-center">
+                            ${createLinkButton(item.buktiDokumen, 'dokumen')}
+                        </td>
+                    </tr>
+                `;
+            });
+
+            tbody.innerHTML = html;
+            document.getElementById('showing-text').innerText = `Menampilkan ${filteredData.length} baris sekolah`;
+        }
+    </script>
+</body>
+</html>
