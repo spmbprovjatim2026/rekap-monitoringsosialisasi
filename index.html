@@ -8,6 +8,8 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- PapaParse untuk parsing CSV -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+    <!-- Chart.js untuk visualisasi data (Memperbaiki link CDN ke versi UMD agar Chart dikenali) -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.2/dist/chart.umd.min.js"></script>
     
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
@@ -123,6 +125,17 @@
                             <!-- Baris tabel akan dirender oleh JavaScript -->
                         </tbody>
                     </table>
+                </div>
+            </div>
+
+            <!-- Grafik Jumlah Sasaran Sosialisasi Tiap Wilayah Cabang Dinas -->
+            <div class="glass-card rounded-2xl flex flex-col overflow-hidden w-full p-6">
+                <div class="mb-6">
+                    <h3 class="text-lg font-bold text-slate-800">Grafik Jumlah Sasaran Sosialisasi Tiap Wilayah Cabang Dinas</h3>
+                    <p class="text-sm text-slate-500">Total keseluruhan peserta yang dicapai oleh sekolah-sekolah di bawah naungan masing-masing cabang dinas wilayah.</p>
+                </div>
+                <div class="relative h-[300px] md:h-[400px] w-full">
+                    <canvas id="pesertaChart"></canvas>
                 </div>
             </div>
 
@@ -257,6 +270,7 @@
         // State Global
         let globalUniqueData = []; // Untuk rekapitulasi & grafik (tanpa duplikat)
         let globalAllData = [];    // Untuk tabel rincian (semua data termasuk duplikat)
+        let pesertaChartObj = null;
 
         // Inisialisasi Aplikasi
         document.addEventListener('DOMContentLoaded', () => {
@@ -356,6 +370,7 @@
 
             updateSummary();
             renderSummaryTable();
+            renderPesertaChart();
             renderTable();
         }
 
@@ -397,27 +412,40 @@
                 cabdinCounts[item.cabdin] = (cabdinCounts[item.cabdin] || 0) + 1;
             });
 
-            const labels = Object.keys(cabdinCounts).sort();
-            let html = "";
-
-            labels.forEach((label, index) => {
+            // Menyusun data ke dalam array untuk mempermudah proses sorting
+            let summaryData = [];
+            Object.keys(cabdinCounts).forEach(label => {
                 const count = cabdinCounts[label];
                 const target = getTargetForCabdin(label);
                 const percentage = Math.min(Math.round((count / target) * 100), 100);
+                summaryData.push({ label, count, target, percentage });
+            });
 
+            // Mengurutkan data berdasarkan persentase tertinggi ke terendah
+            summaryData.sort((a, b) => {
+                if (b.percentage !== a.percentage) {
+                    return b.percentage - a.percentage;
+                }
+                // Jika persentase sama, urutkan berdasarkan abjad nama cabang dinas
+                return a.label.localeCompare(b.label);
+            });
+
+            let html = "";
+
+            summaryData.forEach((data, index) => {
                 let badgeClass = "bg-green-100 text-green-700 border border-green-200";
-                if (percentage < 40) badgeClass = "bg-red-100 text-red-700 border border-red-200";
-                else if (percentage < 70) badgeClass = "bg-yellow-100 text-yellow-700 border border-yellow-200";
+                if (data.percentage < 40) badgeClass = "bg-red-100 text-red-700 border border-red-200";
+                else if (data.percentage < 70) badgeClass = "bg-yellow-100 text-yellow-700 border border-yellow-200";
 
                 html += `
                     <tr class="hover:bg-slate-50 transition-colors">
                         <td class="px-6 py-4 border-b w-12 text-center text-slate-500">${index + 1}</td>
-                        <td class="px-6 py-4 border-b font-medium text-slate-800">${label}</td>
-                        <td class="px-6 py-4 border-b text-center font-medium">${count}</td>
-                        <td class="px-6 py-4 border-b text-center text-slate-500">${target}</td>
+                        <td class="px-6 py-4 border-b font-medium text-slate-800">${data.label}</td>
+                        <td class="px-6 py-4 border-b text-center font-medium">${data.count}</td>
+                        <td class="px-6 py-4 border-b text-center text-slate-500">${data.target}</td>
                         <td class="px-6 py-4 border-b text-center">
                             <span class="px-3 py-1 rounded-full text-xs font-bold ${badgeClass}">
-                                ${percentage}%
+                                ${data.percentage}%
                             </span>
                         </td>
                     </tr>
@@ -425,6 +453,83 @@
             });
 
             tbody.innerHTML = html;
+        }
+
+        // Fungsi bantu untuk mengekstrak angka peserta dari teks
+        function parsePeserta(val) {
+            if (!val) return 0;
+            // Menghapus semua karakter selain angka
+            const num = parseInt(val.toString().replace(/[^0-9]/g, ''), 10);
+            return isNaN(num) ? 0 : num;
+        }
+
+        // Render Grafik Jumlah Sasaran Sosialisasi
+        function renderPesertaChart() {
+            const ctx = document.getElementById('pesertaChart').getContext('2d');
+            
+            // Mengelompokkan dan menjumlahkan peserta berdasarkan Cabdin
+            const pesertaCounts = {};
+            globalUniqueData.forEach(item => {
+                const count = parsePeserta(item.jumlahPeserta);
+                pesertaCounts[item.cabdin] = (pesertaCounts[item.cabdin] || 0) + count;
+            });
+
+            // Mengurutkan dari jumlah peserta tertinggi ke terendah
+            const sortedCabdins = Object.keys(pesertaCounts).sort((a, b) => pesertaCounts[b] - pesertaCounts[a]);
+            const labels = sortedCabdins;
+            const dataCounts = sortedCabdins.map(label => pesertaCounts[label]);
+
+            if (pesertaChartObj) {
+                pesertaChartObj.destroy();
+            }
+
+            pesertaChartObj = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [
+                        {
+                            label: 'Total Sasaran (Peserta)',
+                            data: dataCounts,
+                            backgroundColor: 'rgba(16, 185, 129, 0.8)', // Emerald-500
+                            borderColor: 'rgb(5, 150, 105)', // Emerald-600
+                            borderWidth: 1,
+                            borderRadius: 4,
+                            yAxisID: 'y'
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    return ` ${context.raw.toLocaleString('id-ID')} Peserta`;
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            title: {
+                                display: true,
+                                text: 'Jumlah Peserta'
+                            }
+                        },
+                        x: {
+                            ticks: {
+                                autoSkip: false,
+                                maxRotation: 45,
+                                minRotation: 45
+                            }
+                        }
+                    }
+                }
+            });
         }
 
         // Pengecekan URL Valid yang lebih fleksibel
