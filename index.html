@@ -86,7 +86,7 @@
         <div id="dashboard-content" class="hidden flex-col gap-8">
             
             <!-- Summary Stats -->
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                 <div class="glass-card rounded-2xl p-6 border-l-4 border-l-blue-500">
                     <p class="text-sm text-slate-500 font-semibold mb-1">Total Sekolah Melapor</p>
                     <h2 id="stat-total" class="text-4xl font-bold text-slate-800">0</h2>
@@ -94,6 +94,10 @@
                 <div class="glass-card rounded-2xl p-6 border-l-4 border-l-green-500">
                     <p class="text-sm text-slate-500 font-semibold mb-1">Cabang Dinas Terlibat</p>
                     <h2 id="stat-cabdin" class="text-4xl font-bold text-slate-800">0</h2>
+                </div>
+                <div class="glass-card rounded-2xl p-6 border-l-4 border-l-amber-500">
+                    <p class="text-sm text-slate-500 font-semibold mb-1">Total Sasaran Sosialisasi</p>
+                    <h2 id="stat-peserta" class="text-4xl font-bold text-slate-800">0</h2>
                 </div>
                 <div class="glass-card rounded-2xl p-6 border-l-4 border-l-purple-500 flex flex-col justify-center">
                     <p class="text-sm text-slate-500 font-semibold mb-2">Progress Keseluruhan</p>
@@ -179,8 +183,11 @@
                 </div>
                 
                 <!-- Pagination (Simple) -->
-                <div class="p-4 border-t border-slate-100 bg-slate-50 flex justify-between items-center text-sm text-slate-600">
+                <div class="p-4 border-t border-slate-100 bg-slate-50 flex flex-col sm:flex-row justify-between items-center text-sm text-slate-600 gap-4">
                     <span id="showing-text">Menampilkan 0 baris</span>
+                    <div id="pagination-controls" class="flex gap-2 items-center">
+                        <!-- Tombol pagination akan dirender di sini -->
+                    </div>
                 </div>
             </div>
         </div>
@@ -270,7 +277,10 @@
         // State Global
         let globalUniqueData = []; // Untuk rekapitulasi & grafik (tanpa duplikat)
         let globalAllData = [];    // Untuk tabel rincian (semua data termasuk duplikat)
+        let filteredAllData = [];  // Untuk menyimpan data hasil pencarian
         let pesertaChartObj = null;
+        let currentPage = 1;
+        const rowsPerPage = 20;
 
         // Inisialisasi Aplikasi
         document.addEventListener('DOMContentLoaded', () => {
@@ -381,20 +391,25 @@
             // Dapatkan list Cabdin unik
             const cabdins = [...new Set(globalUniqueData.map(item => item.cabdin))];
             
-            // Hitung estimasi total target sekolah
-            let estimatedTotalTarget = 0;
-            cabdins.forEach(c => {
-                estimatedTotalTarget += getTargetForCabdin(c);
+            // Hitung total sekolah kewenangan se-Jatim (Keseluruhan)
+            let grandTotalTarget = Object.values(targetSekolahPerCabdin).reduce((sum, val) => sum + val, 0);
+
+            // Hitung total peserta/siswa sasaran secara keseluruhan
+            let totalPeserta = 0;
+            globalUniqueData.forEach(item => {
+                totalPeserta += parsePeserta(item.jumlahPeserta);
             });
             
-            const progress = estimatedTotalTarget > 0 ? Math.min(Math.round((totalSekolah / estimatedTotalTarget) * 100), 100) : 0;
+            // Progress dihitung dari total sekolah yang melapor dibagi total seluruh sekolah di Jatim
+            const progress = grandTotalTarget > 0 ? Math.min(Math.round((totalSekolah / grandTotalTarget) * 100), 100) : 0;
 
             document.getElementById('stat-total').innerText = totalSekolah;
             document.getElementById('stat-cabdin').innerText = cabdins.length;
+            document.getElementById('stat-peserta').innerText = totalPeserta.toLocaleString('id-ID');
             
             const bar = document.getElementById('stat-progress-bar');
             bar.style.width = `${progress}%`;
-            document.getElementById('stat-progress-text').innerText = `${progress}% (Dari total sekolah kewenangan)`;
+            document.getElementById('stat-progress-text').innerText = `${progress}% (Dari total ${grandTotalTarget} sekolah kewenangan se-Jatim)`;
             
             // Ganti warna bar berdasarkan progress
             if (progress < 40) bar.classList.replace('bg-purple-600', 'bg-red-500');
@@ -582,31 +597,46 @@
             `;
         }
 
-        // Render Tabel HTML
+        // Render Tabel HTML dengan fitur Pagination
         function renderTable(searchTerm = "") {
-            const tbody = document.getElementById('table-body');
-            const emptyState = document.getElementById('empty-state');
-            tbody.innerHTML = "";
+            currentPage = 1; // Reset ke halaman 1 saat pencarian baru
 
             // Filter data dari seluruh isian mentah (termasuk jika ada duplikat)
-            const filteredData = globalAllData.filter(item => {
+            filteredAllData = globalAllData.filter(item => {
                 const term = searchTerm.toLowerCase();
                 return item.cabdin.toLowerCase().includes(term) || item.sekolah.toLowerCase().includes(term);
             });
 
-            if (filteredData.length === 0) {
+            displayPage();
+        }
+
+        // Menampilkan data sesuai halaman aktif
+        function displayPage() {
+            const tbody = document.getElementById('table-body');
+            const emptyState = document.getElementById('empty-state');
+            const paginationControls = document.getElementById('pagination-controls');
+            tbody.innerHTML = "";
+
+            if (filteredAllData.length === 0) {
                 emptyState.classList.remove('hidden');
                 document.getElementById('showing-text').innerText = "Menampilkan 0 baris";
+                if (paginationControls) paginationControls.innerHTML = "";
                 return;
             } else {
                 emptyState.classList.add('hidden');
             }
 
+            // Kalkulasi indeks data per halaman
+            const startIndex = (currentPage - 1) * rowsPerPage;
+            const endIndex = startIndex + rowsPerPage;
+            const pageData = filteredAllData.slice(startIndex, endIndex);
+
             let html = "";
-            filteredData.forEach((item, index) => {
+            pageData.forEach((item, index) => {
+                const actualIndex = startIndex + index + 1; // Nomor urut secara berkesinambungan
                 html += `
                     <tr class="hover:bg-slate-50 transition-colors">
-                        <td class="px-6 py-4 border-b w-12 text-center text-slate-500">${index + 1}</td>
+                        <td class="px-6 py-4 border-b w-12 text-center text-slate-500">${actualIndex}</td>
                         <td class="px-6 py-4 border-b font-medium text-slate-800">${item.cabdin}</td>
                         <td class="px-6 py-4 border-b">${item.sekolah}</td>
                         <td class="px-6 py-4 border-b text-center text-slate-600">${item.tempat}</td>
@@ -623,7 +653,43 @@
             });
 
             tbody.innerHTML = html;
-            document.getElementById('showing-text').innerText = `Menampilkan ${filteredData.length} baris data (termasuk isian berulang)`;
+            
+            // Perbarui teks informasi letak baris
+            const endText = Math.min(endIndex, filteredAllData.length);
+            document.getElementById('showing-text').innerText = `Menampilkan baris ${startIndex + 1} - ${endText} dari total ${filteredAllData.length} data`;
+
+            renderPagination();
+        }
+
+        // Render Tombol Kontrol Halaman (Pagination)
+        function renderPagination() {
+            const container = document.getElementById('pagination-controls');
+            if (!container) return;
+            
+            const totalPages = Math.ceil(filteredAllData.length / rowsPerPage);
+            let html = "";
+
+            if (totalPages > 1) {
+                html += `
+                    <button onclick="changePage(${currentPage - 1})" class="px-3 py-1.5 border border-slate-300 rounded-md bg-white text-slate-600 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-xs font-medium" ${currentPage === 1 ? 'disabled' : ''}>
+                        Sebelumnya
+                    </button>
+                    <span class="px-2 text-xs font-medium text-slate-500">Halaman ${currentPage} dari ${totalPages}</span>
+                    <button onclick="changePage(${currentPage + 1})" class="px-3 py-1.5 border border-slate-300 rounded-md bg-white text-slate-600 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-xs font-medium" ${currentPage === totalPages ? 'disabled' : ''}>
+                        Selanjutnya
+                    </button>
+                `;
+            }
+            container.innerHTML = html;
+        }
+
+        // Fungsi berpindah halaman
+        function changePage(page) {
+            const totalPages = Math.ceil(filteredAllData.length / rowsPerPage);
+            if (page >= 1 && page <= totalPages) {
+                currentPage = page;
+                displayPage();
+            }
         }
     </script>
 </body>
