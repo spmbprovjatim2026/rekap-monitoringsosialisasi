@@ -130,6 +130,14 @@
                         </tbody>
                     </table>
                 </div>
+                
+                <!-- Pagination untuk Summary Table -->
+                <div class="p-4 border-t border-slate-100 bg-slate-50 flex flex-col sm:flex-row justify-between items-center text-sm text-slate-600 gap-4">
+                    <span id="summary-showing-text">Menampilkan 0 baris</span>
+                    <div id="summary-pagination-controls" class="flex gap-2 items-center">
+                        <!-- Tombol pagination akan dirender di sini -->
+                    </div>
+                </div>
             </div>
 
             <!-- Grafik Jumlah Sasaran Sosialisasi Tiap Wilayah Cabang Dinas -->
@@ -278,9 +286,14 @@
         let globalUniqueData = []; // Untuk rekapitulasi & grafik (tanpa duplikat)
         let globalAllData = [];    // Untuk tabel rincian (semua data termasuk duplikat)
         let filteredAllData = [];  // Untuk menyimpan data hasil pencarian
+        let globalSummaryData = []; // Untuk menyimpan data ringkasan persentase
         let pesertaChartObj = null;
+        
         let currentPage = 1;
         const rowsPerPage = 20;
+
+        let summaryCurrentPage = 1;
+        const summaryRowsPerPage = 5;
 
         // Inisialisasi Aplikasi
         document.addEventListener('DOMContentLoaded', () => {
@@ -419,9 +432,7 @@
 
         // Render Tabel Rekapitulasi Persentase
         function renderSummaryTable() {
-            const tbody = document.getElementById('summary-table-body');
-            tbody.innerHTML = "";
-
+            summaryCurrentPage = 1; // Reset ke halaman 1 saat update
             const cabdinCounts = {};
             globalUniqueData.forEach(item => {
                 cabdinCounts[item.cabdin] = (cabdinCounts[item.cabdin] || 0) + 1;
@@ -445,16 +456,38 @@
                 return a.label.localeCompare(b.label);
             });
 
+            globalSummaryData = summaryData;
+            displaySummaryPage();
+        }
+
+        // Menampilkan data Tabel Persentase sesuai halaman aktif
+        function displaySummaryPage() {
+            const tbody = document.getElementById('summary-table-body');
+            const paginationControls = document.getElementById('summary-pagination-controls');
+            tbody.innerHTML = "";
+
+            if (globalSummaryData.length === 0) {
+                document.getElementById('summary-showing-text').innerText = "Menampilkan 0 baris";
+                if (paginationControls) paginationControls.innerHTML = "";
+                return;
+            }
+
+            // Kalkulasi indeks data per halaman
+            const startIndex = (summaryCurrentPage - 1) * summaryRowsPerPage;
+            const endIndex = startIndex + summaryRowsPerPage;
+            const pageData = globalSummaryData.slice(startIndex, endIndex);
+
             let html = "";
 
-            summaryData.forEach((data, index) => {
+            pageData.forEach((data, index) => {
+                const actualIndex = startIndex + index + 1; // Nomor urut berkesinambungan
                 let badgeClass = "bg-green-100 text-green-700 border border-green-200";
                 if (data.percentage < 40) badgeClass = "bg-red-100 text-red-700 border border-red-200";
                 else if (data.percentage < 70) badgeClass = "bg-yellow-100 text-yellow-700 border border-yellow-200";
 
                 html += `
                     <tr class="hover:bg-slate-50 transition-colors">
-                        <td class="px-6 py-4 border-b w-12 text-center text-slate-500">${index + 1}</td>
+                        <td class="px-6 py-4 border-b w-12 text-center text-slate-500">${actualIndex}</td>
                         <td class="px-6 py-4 border-b font-medium text-slate-800">${data.label}</td>
                         <td class="px-6 py-4 border-b text-center font-medium">${data.count}</td>
                         <td class="px-6 py-4 border-b text-center text-slate-500">${data.target}</td>
@@ -468,6 +501,43 @@
             });
 
             tbody.innerHTML = html;
+            
+            // Perbarui teks informasi letak baris
+            const endText = Math.min(endIndex, globalSummaryData.length);
+            document.getElementById('summary-showing-text').innerText = `Menampilkan baris ${startIndex + 1} - ${endText} dari total ${globalSummaryData.length} cabang dinas`;
+
+            renderSummaryPagination();
+        }
+
+        // Render Tombol Kontrol Halaman (Pagination) untuk Summary Table
+        function renderSummaryPagination() {
+            const container = document.getElementById('summary-pagination-controls');
+            if (!container) return;
+            
+            const totalPages = Math.ceil(globalSummaryData.length / summaryRowsPerPage);
+            let html = "";
+
+            if (totalPages > 1) {
+                html += `
+                    <button onclick="changeSummaryPage(${summaryCurrentPage - 1})" class="px-3 py-1.5 border border-slate-300 rounded-md bg-white text-slate-600 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-xs font-medium" ${summaryCurrentPage === 1 ? 'disabled' : ''}>
+                        Sebelumnya
+                    </button>
+                    <span class="px-2 text-xs font-medium text-slate-500">Halaman ${summaryCurrentPage} dari ${totalPages}</span>
+                    <button onclick="changeSummaryPage(${summaryCurrentPage + 1})" class="px-3 py-1.5 border border-slate-300 rounded-md bg-white text-slate-600 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-xs font-medium" ${summaryCurrentPage === totalPages ? 'disabled' : ''}>
+                        Selanjutnya
+                    </button>
+                `;
+            }
+            container.innerHTML = html;
+        }
+
+        // Fungsi berpindah halaman untuk Summary Table
+        function changeSummaryPage(page) {
+            const totalPages = Math.ceil(globalSummaryData.length / summaryRowsPerPage);
+            if (page >= 1 && page <= totalPages) {
+                summaryCurrentPage = page;
+                displaySummaryPage();
+            }
         }
 
         // Fungsi bantu untuk mengekstrak angka peserta dari teks
