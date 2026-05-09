@@ -120,8 +120,8 @@
                             <tr class="bg-slate-50 text-slate-500 text-xs uppercase tracking-wider">
                                 <th class="px-6 py-4 font-semibold border-b">No</th>
                                 <th class="px-6 py-4 font-semibold border-b">Cabang Dinas Pendidikan</th>
+                                <th class="px-6 py-4 font-semibold border-b text-center">Total SMAN/SMKN</th>
                                 <th class="px-6 py-4 font-semibold border-b text-center">Sekolah Melapor</th>
-                                <th class="px-6 py-4 font-semibold border-b text-center">Total Sekolah Kewenangan</th>
                                 <th class="px-6 py-4 font-semibold border-b text-center">Persentase</th>
                                 <th class="px-6 py-4 font-semibold border-b text-center">Total Sasaran</th>
                             </tr>
@@ -424,7 +424,7 @@
             
             const bar = document.getElementById('stat-progress-bar');
             bar.style.width = `${progress}%`;
-            document.getElementById('stat-progress-text').innerText = `${progress}% (Dari total ${grandTotalTarget} sekolah kewenangan se-Jatim)`;
+            document.getElementById('stat-progress-text').innerText = `${progress}% (Dari total ${grandTotalTarget} SMAN/SMKN se-Jatim)`;
             
             // Ganti warna bar berdasarkan progress
             if (progress < 40) bar.classList.replace('bg-purple-600', 'bg-red-500');
@@ -495,8 +495,8 @@
                     <tr class="hover:bg-slate-50 transition-colors">
                         <td class="px-6 py-4 border-b w-12 text-center text-slate-500">${actualIndex}</td>
                         <td class="px-6 py-4 border-b font-medium text-slate-800">${data.label}</td>
-                        <td class="px-6 py-4 border-b text-center font-medium">${data.count}</td>
                         <td class="px-6 py-4 border-b text-center text-slate-500">${data.target}</td>
+                        <td class="px-6 py-4 border-b text-center font-medium">${data.count}</td>
                         <td class="px-6 py-4 border-b text-center">
                             <span class="px-3 py-1 rounded-full text-xs font-bold ${badgeClass}">
                                 ${data.percentage}%
