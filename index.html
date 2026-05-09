@@ -123,6 +123,7 @@
                                 <th class="px-6 py-4 font-semibold border-b text-center">Sekolah Melapor</th>
                                 <th class="px-6 py-4 font-semibold border-b text-center">Total Sekolah Kewenangan</th>
                                 <th class="px-6 py-4 font-semibold border-b text-center">Persentase</th>
+                                <th class="px-6 py-4 font-semibold border-b text-center">Total Sasaran</th>
                             </tr>
                         </thead>
                         <tbody id="summary-table-body" class="text-sm text-slate-700 divide-y divide-slate-100 bg-white">
@@ -354,7 +355,8 @@
             const colTanggal = findCol(['tanggal', 'pelaksanaan', 'waktu', 'timestamp']);
             const colPeserta = findCol(['jumlah', 'peserta', 'siswa']);
             const colHadir = findCol(['hadir', 'absen', 'presensi']);
-            const colDokumen = findCol(['dokumen', 'foto', 'kegiatan', 'bukti']);
+            // MENGHAPUS kata 'bukti' agar tidak salah mendeteksi kolom "Bukti Daftar Hadir"
+            const colDokumen = findCol(['dokumen', 'foto', 'kegiatan']);
 
             // Mapping data agar seragam
             let rawMappedData = data.map((row, index) => {
@@ -434,8 +436,11 @@
         function renderSummaryTable() {
             summaryCurrentPage = 1; // Reset ke halaman 1 saat update
             const cabdinCounts = {};
+            const cabdinPesertaCounts = {}; // Untuk menyimpan total peserta per cabang dinas
+
             globalUniqueData.forEach(item => {
                 cabdinCounts[item.cabdin] = (cabdinCounts[item.cabdin] || 0) + 1;
+                cabdinPesertaCounts[item.cabdin] = (cabdinPesertaCounts[item.cabdin] || 0) + parsePeserta(item.jumlahPeserta);
             });
 
             // Menyusun data ke dalam array untuk mempermudah proses sorting
@@ -444,7 +449,8 @@
                 const count = cabdinCounts[label];
                 const target = getTargetForCabdin(label);
                 const percentage = Math.min(Math.round((count / target) * 100), 100);
-                summaryData.push({ label, count, target, percentage });
+                const peserta = cabdinPesertaCounts[label] || 0; // Total sasaran peserta per cabdin
+                summaryData.push({ label, count, target, percentage, peserta });
             });
 
             // Mengurutkan data berdasarkan persentase tertinggi ke terendah
@@ -495,6 +501,9 @@
                             <span class="px-3 py-1 rounded-full text-xs font-bold ${badgeClass}">
                                 ${data.percentage}%
                             </span>
+                        </td>
+                        <td class="px-6 py-4 border-b text-center font-semibold text-slate-700">
+                            ${data.peserta.toLocaleString('id-ID')}
                         </td>
                     </tr>
                 `;
